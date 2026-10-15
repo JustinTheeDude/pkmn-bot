@@ -1,0 +1,37 @@
+{
+  "check_interval_sec": 20,
+  "jitter_ms": 3000,
+  "timeout_sec": 15,
+  "discord_webhook": "",
+  "auto_open_browser": true,
+  "beep_on_hit": true,
+  "discover": {
+    "enabled": true,
+    "interval_min": 5,
+    "keywords": [
+      "elite-trainer-box",
+      "booster",
+      "collection",
+      "tin",
+      "etb"
+    ],
+    "auto_buy": "off"
+  },
+  "products": [
+    {
+      "name": "Prismatic Evolutions ETB",
+      "url": "https://www.pokemoncenter.com/product/10-10023-101/scarlet-and-violet-prismatic-evolutions-elite-trainer-box",
+      "notify_only": true
+    },
+    {
+      "name": "Prismatic Evolutions Poster Collection",
+      "url": "https://www.pokemoncenter.com/product/10-10024-101/scarlet-and-violet-prismatic-evolutions-poster-collection",
+      "notify_only": true
+    },
+    {
+      "name": "151 Booster Bundle",
+      "url": "https://www.pokemoncenter.com/product/10-10250-101/scarlet-and-violet-151-booster-bundle",
+      "notify_only": true
+    }
+  ]
+}
