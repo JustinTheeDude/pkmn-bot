@@ -110,10 +110,10 @@ func TestAutoBuyMatches(t *testing.T) {
 	}
 	defer func() { onDiscoverFound = orig }()
 
-	cfg := Config{Discover: DiscoverConfig{Enabled: true, IntervalMin: 5, AutoBuy: "dry-run"}}
+	cfg := DiscoverConfig{Enabled: true, IntervalMin: 5, AutoBuy: "dry-run"}
 
 	// OOS URL: no checkout, no run IDs.
-	if runs := autoBuyMatches([]string{oos.URL + "/product/oos"}, &cfg, t.TempDir()+"/profile.json"); len(runs) != 0 {
+	if runs := autoBuyMatches([]string{oos.URL + "/product/oos"}, cfg, t.TempDir()+"/profile.json"); len(runs) != 0 {
 		t.Fatalf("oos must not buy, runs=%v", runs)
 	}
 	if len(calls) != 0 {
@@ -121,7 +121,7 @@ func TestAutoBuyMatches(t *testing.T) {
 	}
 
 	// In-stock URL in dry-run mode: one headed checkout, never live.
-	runs := autoBuyMatches([]string{inStock.URL + "/product/1"}, &cfg, t.TempDir()+"/profile.json")
+	runs := autoBuyMatches([]string{inStock.URL + "/product/1"}, cfg, t.TempDir()+"/profile.json")
 	if len(runs) != 1 || runs[0] != "co-discover-1" {
 		t.Fatalf("runs=%v", runs)
 	}
@@ -131,16 +131,16 @@ func TestAutoBuyMatches(t *testing.T) {
 
 	// Live mode passes placeOrder through.
 	calls = nil
-	cfg.Discover.AutoBuy = "live"
-	autoBuyMatches([]string{inStock.URL + "/product/1"}, &cfg, t.TempDir()+"/profile.json")
+	cfg.AutoBuy = "live"
+	autoBuyMatches([]string{inStock.URL + "/product/1"}, cfg, t.TempDir()+"/profile.json")
 	if len(calls) != 1 || !calls[0].placeOrder {
 		t.Fatalf("live must place order, calls=%+v", calls)
 	}
 
 	// Off (and unknown values) never buy.
 	calls = nil
-	cfg.Discover.AutoBuy = "off"
-	if runs := autoBuyMatches([]string{inStock.URL + "/product/1"}, &cfg, t.TempDir()+"/profile.json"); len(runs) != 0 || len(calls) != 0 {
+	cfg.AutoBuy = "off"
+	if runs := autoBuyMatches([]string{inStock.URL + "/product/1"}, cfg, t.TempDir()+"/profile.json"); len(runs) != 0 || len(calls) != 0 {
 		t.Fatalf("off must not buy, runs=%v calls=%d", runs, len(calls))
 	}
 }

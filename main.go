@@ -26,7 +26,6 @@ import (
 	"log"
 	"net/http"
 	"net/http/cookiejar"
-	"os"
 	"os/exec"
 	"runtime"
 	"strings"
@@ -48,10 +47,8 @@ type Config struct {
 
 // Product is one sealed item to watch.
 type Product struct {
-	Name       string `json:"name"`
-	URL        string `json:"url"`
-	MaxPrice   string `json:"max_price_note,omitempty"`
-	NotifyOnly bool   `json:"notify_only"`
+	Name string `json:"name"`
+	URL  string `json:"url"`
 }
 
 var userAgents = []string{
@@ -71,16 +68,17 @@ func main() {
 	once := flag.Bool("once", false, "check every product once and exit")
 	flag.Parse()
 
-	cfg, err := loadConfig(*cfgPath)
+	store, err := newConfigStore(*cfgPath)
 	if err != nil {
 		log.Fatalf("load config %s: %v", *cfgPath, err)
 	}
+	cfg := store.Snapshot()
 	if len(cfg.Products) == 0 {
 		log.Fatal("no products in config.json — add at least one URL")
 	}
 
 	log.Printf("pokebot-go: watching %d product(s) every ~%ds (Go, concurrent)", len(cfg.Products), cfg.CheckIntervalSec)
-	setUIStatus(len(cfg.Products), cfg.CheckIntervalSec, "live")
+	store.updateStatus("live")
 
 	if *checkoutIdx >= 0 {
 		if *checkoutIdx >= len(cfg.Products) {
@@ -104,20 +102,15 @@ func main() {
 
 	if *uiAddr != "" {
 		// Run monitor workers in background, UI in foreground.
-		for i, p := range cfg.Products {
-			go func(idx int, pr Product) {
-				time.Sleep(time.Duration(idx*400) * time.Millisecond)
-				tickerJitterLoop(pr, cfg)
-			}(i, p)
-		}
-		if cfg.Discover.Enabled {
-			go discoverLoop(&cfg, *cfgPath, *profilePath)
+		startMonitor(store)
+		if store.Discover().Enabled {
+			go discoverLoop(store, *profilePath)
 		}
 		// Touch profile file so perms note is visible early (0600).
 		if _, err := loadProfile(*profilePath); err != nil {
 			log.Printf("profile: %v", err)
 		}
-		if err := startUIServer(*uiAddr, *cfgPath, *profilePath, &cfg); err != nil {
+		if err := startUIServer(*uiAddr, *profilePath, store); err != nil {
 			log.Fatalf("UI server: %v", err)
 		}
 		return
@@ -136,79 +129,33 @@ func main() {
 		return
 	}
 
-	var wg sync.WaitGroup
-	for i, p := range cfg.Products {
-		wg.Add(1)
+	startMonitor(store)
+	if store.Discover().Enabled {
+		discoverLoop(store, *profilePath) // blocks forever
+	}
+	select {} // keep monitor workers alive when discovery is disabled
+}
+
+// startMonitor launches one goroutine per watched product. Each worker takes a
+// config snapshot per cycle so interval/jitter edits apply without a restart.
+func startMonitor(store *configStore) {
+	for i, p := range store.Products() {
 		go func(idx int, pr Product) {
-			defer wg.Done()
 			// Stagger workers so N products don't fire at the exact same ms.
 			time.Sleep(time.Duration(idx*400) * time.Millisecond)
-			tickerJitterLoop(pr, cfg)
+			tickerJitterLoop(store, pr)
 		}(i, p)
 	}
-	if cfg.Discover.Enabled {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			discoverLoop(&cfg, *cfgPath, *profilePath)
-		}()
-	}
-	wg.Wait()
 }
 
-func loadConfig(path string) (Config, error) {
-	c := Config{
-		CheckIntervalSec: 20,
-		TimeoutSec:       15,
-		Discover:         defaultDiscover(),
-	}
-	f, err := os.Open(path)
-	if err != nil {
-		return c, err
-	}
-	defer f.Close()
-	// Decode over defaults so absent keys keep sane values; then fix
-	// nested structs encoding/json leaves half-zeroed.
-	var raw map[string]json.RawMessage
-	data, err := io.ReadAll(f)
-	if err != nil {
-		return c, err
-	}
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return c, err
-	}
-	if err := json.Unmarshal(data, &c); err != nil {
-		return c, err
-	}
-	if _, ok := raw["discover"]; !ok {
-		c.Discover = defaultDiscover()
-	} else {
-		normalizeDiscover(&c.Discover)
-	}
-	if c.CheckIntervalSec <= 0 {
-		c.CheckIntervalSec = 20
-	}
-	if c.TimeoutSec <= 0 {
-		c.TimeoutSec = 15
-	}
-	if c.JitterMs < 0 {
-		c.JitterMs = 0
-	}
-	return c, nil
-}
-
-func saveConfig(path string, cfg *Config) error {
-	data, err := json.MarshalIndent(cfg, "", "  ")
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(path, data, 0644)
-}
-
-func tickerJitterLoop(p Product, cfg Config) {
+// tickerJitterLoop polls one product forever. It reads interval/jitter fresh
+// each cycle so settings edits take effect without restarting the monitor.
+func tickerJitterLoop(store *configStore, p Product) {
 	for {
+		cfg := store.Snapshot()
 		checkOne(p, cfg, false)
-		sleep := time.Duration(cfg.CheckIntervalSec)*time.Second + time.Duration(randMs(cfg.JitterMs))*time.Millisecond
+		intervalSec, jitterMs, _ := store.WatchParams()
+		sleep := time.Duration(intervalSec)*time.Second + time.Duration(randMs(jitterMs))*time.Millisecond
 		time.Sleep(sleep)
 	}
 }

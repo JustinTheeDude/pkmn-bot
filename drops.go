@@ -6,9 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"strconv"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -30,15 +28,7 @@ type DropJob struct {
 	CreatedAt       time.Time `json:"created_at"`
 }
 
-var dropJobs = struct {
-	sync.Mutex
-	jobs map[string]*DropJob
-}{jobs: map[string]*DropJob{}}
-
-var dropCancel = struct {
-	sync.Mutex
-	fn map[string]context.CancelFunc
-}{fn: map[string]context.CancelFunc{}}
+var drops = newDropStore()
 
 // onDropFound fires the browser checkout. Variable (not const) so tests can
 // stub it without launching a real browser.
@@ -48,11 +38,11 @@ var onDropFound = func(name, url string, p Profile, headed, placeOrder bool) str
 
 // scheduleDrop validates + registers a job and arms its timer.
 func scheduleDrop(in DropJob, profilePath string) (*DropJob, error) {
-	if strings.TrimSpace(in.Name) == "" || strings.TrimSpace(in.URL) == "" {
-		return nil, fmt.Errorf("name + url required")
+	if strings.TrimSpace(in.Name) == "" {
+		return nil, fmt.Errorf("name required")
 	}
-	if !strings.HasPrefix(in.URL, "https://") && !strings.HasPrefix(in.URL, "http://localhost") && !strings.HasPrefix(in.URL, "http://127.0.0.1") {
-		return nil, fmt.Errorf("url must start with https://")
+	if err := validateProductURL(in.URL); err != nil {
+		return nil, err
 	}
 	if in.FireAt.Before(time.Now().Add(-time.Minute)) {
 		return nil, fmt.Errorf("fire_at is in the past")
@@ -70,7 +60,7 @@ func scheduleDrop(in DropJob, profilePath string) (*DropJob, error) {
 		return nil, fmt.Errorf("retry_interval_ms minimum 500 (rate-limit safety)")
 	}
 	job := &DropJob{
-		ID:              fmt.Sprintf("drop-%d", time.Now().UnixNano()),
+		ID:              dropJobID(time.Now()),
 		Name:            in.Name,
 		URL:             in.URL,
 		FireAt:          in.FireAt,
@@ -82,41 +72,34 @@ func scheduleDrop(in DropJob, profilePath string) (*DropJob, error) {
 		CreatedAt:       time.Now(),
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	dropJobs.Lock()
-	dropJobs.jobs[job.ID] = job
-	dropJobs.Unlock()
-	dropCancel.Lock()
-	dropCancel.fn[job.ID] = cancel
-	dropCancel.Unlock()
+	drops.add(job, cancel)
 	go runDropJob(ctx, job, profilePath)
-	return job, nil
+	return job.clone(), nil
 }
 
 // runDropJob waits for fire time, then tries up to MaxAttempts fast stock
 // checks spaced RetryIntervalMs apart. First in-stock signal hands off to
 // ONE browser checkout run; all misses exhaust -> job dies (dead).
 func runDropJob(ctx context.Context, job *DropJob, profilePath string) {
-	setDrop(job.ID, "scheduled", fmt.Sprintf("fires at %s", job.FireAt.Format("15:04:05")))
+	drops.setState(job.ID, "scheduled", fmt.Sprintf("fires at %s", job.FireAt.Format("15:04:05")))
 	timer := time.NewTimer(time.Until(job.FireAt))
 	defer timer.Stop()
 	select {
 	case <-ctx.Done():
-		setDrop(job.ID, "cancelled", "cancelled before firing")
+		drops.setState(job.ID, "cancelled", "cancelled before firing")
 		return
 	case <-timer.C:
 	}
-	setDrop(job.ID, "running", "fired — hunting Add to Cart")
+	drops.setState(job.ID, "running", "fired — hunting Add to Cart")
 	client := newClient(10)
 	for i := 1; i <= job.MaxAttempts; i++ {
 		select {
 		case <-ctx.Done():
-			setDrop(job.ID, "cancelled", fmt.Sprintf("cancelled after %d attempt(s)", i-1))
+			drops.setState(job.ID, "cancelled", fmt.Sprintf("cancelled after %d attempt(s)", i-1))
 			return
 		default:
 		}
-		dropJobs.Lock()
-		job.Attempts = i
-		dropJobs.Unlock()
+		drops.setAttempts(job.ID, i)
 
 		res, _ := fetchProduct(client, job.URL)
 		log.Printf("drop %s attempt %d/%d: blocked=%v inStock=%v (%s)",
@@ -124,51 +107,29 @@ func runDropJob(ctx context.Context, job *DropJob, profilePath string) {
 		if res.InStock {
 			p, _ := loadProfile(profilePath)
 			runID := onDropFound(job.Name, job.URL, p, job.Headed, job.PlaceOrder)
-			dropJobs.Lock()
-			job.CheckoutRunID = runID
-			dropJobs.Unlock()
-			setDrop(job.ID, "done", fmt.Sprintf("in-stock on attempt %d — browser checkout %s", i, runID))
+			drops.setCheckoutRun(job.ID, runID)
+			drops.setState(job.ID, "done", fmt.Sprintf("in-stock on attempt %d — browser checkout %s", i, runID))
 			return
 		}
 		if i < job.MaxAttempts {
 			select {
 			case <-ctx.Done():
-				setDrop(job.ID, "cancelled", fmt.Sprintf("cancelled after %d attempt(s)", i))
+				drops.setState(job.ID, "cancelled", fmt.Sprintf("cancelled after %d attempt(s)", i))
 				return
 			case <-time.After(time.Duration(job.RetryIntervalMs) * time.Millisecond):
 			}
 		}
 	}
 	// Missed every attempt: kill the job. Nothing lingers.
-	setDrop(job.ID, "dead", fmt.Sprintf("no stock after %d attempts — job killed", job.MaxAttempts))
-	dropCancel.Lock()
-	delete(dropCancel.fn, job.ID)
-	dropCancel.Unlock()
-}
-
-func setDrop(id, state, note string) {
-	dropJobs.Lock()
-	defer dropJobs.Unlock()
-	if j, ok := dropJobs.jobs[id]; ok {
-		j.State = state
-		j.Note = note
-	}
+	drops.setState(job.ID, "dead", fmt.Sprintf("no stock after %d attempts — job killed", job.MaxAttempts))
+	drops.forget(job.ID)
 }
 
 func handleDrops(profilePath string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
-			dropJobs.Lock()
-			list := make([]*DropJob, 0, len(dropJobs.jobs))
-			for _, j := range dropJobs.jobs {
-				list = append(list, j)
-			}
-			dropJobs.Unlock()
-			if list == nil {
-				list = []*DropJob{}
-			}
-			writeJSON(w, list)
+			writeJSON(w, drops.List())
 		case http.MethodPost:
 			var in struct {
 				Name            string `json:"name"`
@@ -208,9 +169,7 @@ func handleDrops(profilePath string) http.HandlerFunc {
 func handleDropByID(w http.ResponseWriter, r *http.Request) {
 	id := strings.TrimPrefix(r.URL.Path, "/api/drops/")
 	id = strings.SplitN(id, "/", 2)[0]
-	dropJobs.Lock()
-	job, ok := dropJobs.jobs[id]
-	dropJobs.Unlock()
+	job, ok := drops.Get(id)
 	if !ok {
 		writeError(w, http.StatusNotFound, "drop not found")
 		return
@@ -219,23 +178,14 @@ func handleDropByID(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet:
 		writeJSON(w, job)
 	case http.MethodDelete:
-		dropCancel.Lock()
-		if cancel, ok := dropCancel.fn[id]; ok {
-			cancel()
-			delete(dropCancel.fn, id)
-		} else if job.State == "scheduled" || job.State == "running" {
-			setDrop(id, "cancelled", "cancelled")
+		if !drops.cancelJob(id) && (job.State == "scheduled" || job.State == "running") {
+			drops.setState(id, "cancelled", "cancelled")
 		}
-		dropCancel.Unlock()
-		writeJSON(w, job)
+		writeJSON(w, drops.mustGet(id))
 	default:
 		writeError(w, http.StatusMethodNotAllowed, "use GET or DELETE")
 	}
 }
-
-// dropIndex parses /api/drops/{n} style index — kept for parity with
-// products; drops are ID-keyed so this helper stays unused until needed.
-var _ = strconv.Atoi
 
 func headedOrDefault(b *bool) bool {
 	if b == nil {

@@ -31,20 +31,16 @@ func TestScheduledDropHitsAndHandsOff(t *testing.T) {
 	}
 	deadline := time.Now().Add(15 * time.Second)
 	for time.Now().Before(deadline) {
-		dropJobs.Lock()
-		state := dropJobs.jobs[job.ID].State
-		dropJobs.Unlock()
-		if state == "done" {
+		j, _ := drops.Get(job.ID)
+		if j.State == "done" {
 			break
 		}
-		if state == "dead" {
-			t.Fatalf("job died, expected done: %+v", job)
+		if j.State == "dead" {
+			t.Fatalf("job died, expected done: %+v", j)
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
-	dropJobs.Lock()
-	defer dropJobs.Unlock()
-	got := dropJobs.jobs[job.ID]
+	got, _ := drops.Get(job.ID)
 	if got.State != "done" {
 		t.Fatalf("state=%s note=%s", got.State, got.Note)
 	}
@@ -82,17 +78,13 @@ func TestScheduledDropDiesAfterMisses(t *testing.T) {
 	}
 	deadline := time.Now().Add(15 * time.Second)
 	for time.Now().Before(deadline) {
-		dropJobs.Lock()
-		state := dropJobs.jobs[job.ID].State
-		dropJobs.Unlock()
-		if state == "dead" {
+		j, _ := drops.Get(job.ID)
+		if j.State == "dead" {
 			break
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
-	dropJobs.Lock()
-	defer dropJobs.Unlock()
-	got := dropJobs.jobs[job.ID]
+	got, _ := drops.Get(job.ID)
 	if got.State != "dead" {
 		t.Fatalf("state=%s note=%s", got.State, got.Note)
 	}

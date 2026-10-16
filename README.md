@@ -1,7 +1,8 @@
 # pokebot-go — fast Pokemon Center restock monitor (Go)
 
 Concurrent poller + instant alerts for sealed Pokemon Center drops.
-Zero dependencies, stdlib only.
+The monitor and REST API are stdlib-only; the assisted browser checkout and
+scheduled drops use Playwright (`github.com/mxschmitt/playwright-go`).
 
 ## Why this design
 
@@ -57,6 +58,9 @@ GET    /api/drops             list scheduled drops
 POST   /api/drops             schedule a drop (RFC3339 fire_at)
 GET    /api/drops/{id}        one drop job
 DELETE /api/drops/{id}        cancel a scheduled/running drop
+GET    /api/discover          discovery config + last poll stats
+PUT    /api/discover          update discovery config (interval, keywords, auto_buy)
+GET    /api/discovered        URLs found on the latest discovery poll
 ```
 
 ## Playwright checkout + scheduled drops
@@ -71,7 +75,7 @@ DELETE /api/drops/{id}        cancel a scheduled/running drop
 The dashboard has ⏰ Scheduled drops: name + URL + exact time, tries (default
 5) and retry gap ms (default 2000, min 500). At fire time it fast-checks for
 Add to Cart; first hit opens ONE headed browser checkout, full miss kills the
-job (`dead`). First run needs ` headed` browser so you can pass the Queue-it
+job (`dead`). First run needs a `headed` browser so you can pass the Queue-it
 queue/CAPTCHA once — login persists in `browser-profile/storage.json`.
 
 React source lives in `web/src` (`App.jsx`, `api.js`, dashboard panels in

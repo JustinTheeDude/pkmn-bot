@@ -1,5 +1,9 @@
-profile.json
+# Compiled binaries (module builds to "pokebot-go"; README uses "pokebot").
 pokebot
+pokebot-go
+profile.json
 web/node_modules/
 browser-profile/
 screenshots/
+# sitemap_known.json is regenerated on every discovery poll (high churn).
+sitemap_known.json

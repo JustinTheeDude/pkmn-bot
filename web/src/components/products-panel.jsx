@@ -5,7 +5,6 @@ import { Button } from './ui/button.jsx'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card.jsx'
 import { Input } from './ui/input.jsx'
 import { Label } from './ui/label.jsx'
-import { Badge } from './ui/badge.jsx'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table.jsx'
 
 export function ProductsPanel({ items, onChange }) {
@@ -78,7 +77,6 @@ export function ProductsPanel({ items, onChange }) {
                       <span className="truncate font-mono">open link</span>
                       <ExternalLink className="h-3 w-3" />
                     </a>
-                    {x.notify_only && <Badge variant="secondary" className="mt-1">notify only</Badge>}
                   </TableCell>
                   <TableCell className="hidden max-w-[280px] md:table-cell">
                     <a href={x.url} target="_blank" rel="noreferrer" className="flex items-center gap-1 truncate font-mono text-xs text-muted-foreground hover:text-foreground">

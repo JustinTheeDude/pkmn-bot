@@ -60,24 +60,26 @@ func setUIStatus(watching, interval int, note string) {
 //	PUT    /api/profile           update profile (blank card fields = keep)
 //
 // Static React build (web/dist) is served at / when present.
-func startUIServer(addr, cfgPath, profilePath string, cfg *Config) error {
-	host, _, _ := net.SplitHostPort(addr)
+func startUIServer(addr, profilePath string, store *configStore) error {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		return fmt.Errorf("bad --ui address %q: %w", addr, err)
+	}
 	if host != "" && host != "127.0.0.1" && host != "localhost" {
 		return fmt.Errorf("refusing to bind %q: UI must stay on 127.0.0.1 for card-data safety", addr)
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/status", handleStatus)
-	mux.HandleFunc("/api/settings", makeSettingsHandler(cfgPath, cfg))
-	mux.HandleFunc("/api/config", makeConfigHandler(cfgPath, cfg)) // legacy compat
-	mux.HandleFunc("/api/products", makeProductsHandler(cfgPath, cfg))
-	mux.HandleFunc("/api/products/", makeProductByIndexHandler(cfgPath, cfg))
+	mux.HandleFunc("/api/settings", makeSettingsHandler(store))
+	mux.HandleFunc("/api/products", makeProductsHandler(store))
+	mux.HandleFunc("/api/products/", makeProductByIndexHandler(store))
 	mux.HandleFunc("/api/profile", makeProfileHandler(profilePath))
-	mux.HandleFunc("/api/checkout/", makeCheckoutHandler(cfg, profilePath))
+	mux.HandleFunc("/api/checkout/", makeCheckoutHandler(store, profilePath))
 	mux.HandleFunc("/api/checkout/runs", handleCheckoutRuns)
 	mux.HandleFunc("/api/checkout/runs/", handleCheckoutRunByID)
 	mux.HandleFunc("/api/drops", handleDrops(profilePath))
 	mux.HandleFunc("/api/drops/", handleDropByID)
-	mux.HandleFunc("/api/discover", handleDiscover(cfg, cfgPath))
+	mux.HandleFunc("/api/discover", makeDiscoverHandler(store))
 	mux.HandleFunc("/api/discovered", handleDiscovered)
 	mux.Handle("/", staticHandler())
 
@@ -159,120 +161,50 @@ func settingsFrom(cfg *Config) settingsDTO {
 	}
 }
 
-func makeSettingsHandler(cfgPath string, cfg *Config) http.HandlerFunc {
+func makeSettingsHandler(store *configStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
-			writeJSON(w, settingsFrom(cfg))
+			writeJSON(w, store.Settings())
 		case http.MethodPut:
 			var in settingsDTO
 			if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10)).Decode(&in); err != nil {
 				writeError(w, http.StatusBadRequest, "bad json: "+err.Error())
 				return
 			}
-			if in.CheckIntervalSec < 10 {
-				writeError(w, http.StatusBadRequest, "check_interval_sec must be >= 10 (rate-limit safety)")
+			saved, err := store.UpdateSettings(in)
+			if err != nil {
+				writeError(w, http.StatusBadRequest, err.Error())
 				return
 			}
-			if in.TimeoutSec < 5 {
-				writeError(w, http.StatusBadRequest, "timeout_sec must be >= 5")
-				return
-			}
-			cfg.CheckIntervalSec = in.CheckIntervalSec
-			cfg.JitterMs = in.JitterMs
-			cfg.TimeoutSec = in.TimeoutSec
-			cfg.DiscordWebhook = in.DiscordWebhook
-			cfg.AutoOpenBrowser = in.AutoOpenBrowser
-			cfg.BeepOnHit = in.BeepOnHit
-			cfg.Discover = in.Discover
-			normalizeDiscover(&cfg.Discover)
-			if err := saveConfig(cfgPath, cfg); err != nil {
-				writeError(w, http.StatusInternalServerError, "save: "+err.Error())
-				return
-			}
-			setUIStatus(len(cfg.Products), cfg.CheckIntervalSec, "settings saved")
-			writeJSON(w, settingsFrom(cfg))
+			store.updateStatus("settings saved")
+			writeJSON(w, saved)
 		default:
 			writeError(w, http.StatusMethodNotAllowed, "use GET or PUT")
 		}
 	}
 }
 
-func makeConfigHandler(cfgPath string, cfg *Config) http.HandlerFunc {
+func makeProductsHandler(store *configStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
-			writeJSON(w, cfg)
+			writeJSON(w, store.Products())
 		case http.MethodPost:
-			var in Config
-			if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10)).Decode(&in); err != nil {
-				writeError(w, http.StatusBadRequest, "bad json: "+err.Error())
-				return
-			}
-			if in.CheckIntervalSec < 10 {
-				writeError(w, http.StatusBadRequest, "check_interval_sec must be >= 10 (rate-limit safety)")
-				return
-			}
-			cfg.CheckIntervalSec = in.CheckIntervalSec
-			cfg.JitterMs = in.JitterMs
-			cfg.TimeoutSec = in.TimeoutSec
-			cfg.DiscordWebhook = in.DiscordWebhook
-			cfg.AutoOpenBrowser = in.AutoOpenBrowser
-			cfg.BeepOnHit = in.BeepOnHit
-			if err := saveConfig(cfgPath, cfg); err != nil {
-				writeError(w, http.StatusInternalServerError, "save: "+err.Error())
-				return
-			}
-			setUIStatus(len(cfg.Products), cfg.CheckIntervalSec, "settings saved")
-			writeJSON(w, map[string]string{"ok": "true"})
-		default:
-			writeError(w, http.StatusMethodNotAllowed, "method not allowed")
-		}
-	}
-}
-
-func makeProductsHandler(cfgPath string, cfg *Config) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case http.MethodGet:
-			if cfg.Products == nil {
-				writeJSON(w, []Product{})
-				return
-			}
-			writeJSON(w, cfg.Products)
-		case http.MethodPost:
-			// New REST style: {name, url, ...} creates a product.
-			// Legacy style: {action: add|remove, index, item} still works.
-			var raw map[string]json.RawMessage
-			if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10)).Decode(&raw); err != nil {
+			var item Product
+			if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10)).Decode(&item); err != nil {
 				writeError(w, http.StatusBadRequest, "bad json")
 				return
 			}
-			if _, legacy := raw["action"]; legacy {
-				handleLegacyProductAction(w, cfgPath, cfg, raw)
+			if strings.TrimSpace(item.Name) == "" {
+				writeError(w, http.StatusBadRequest, "name required")
 				return
 			}
-			var item Product
-			data, _ := json.Marshal(raw)
-			if err := json.Unmarshal(data, &item); err != nil {
-				writeError(w, http.StatusBadRequest, "bad product json")
+			if err := store.AddProduct(item); err != nil {
+				writeError(w, http.StatusBadRequest, err.Error())
 				return
 			}
-			if item.Name == "" || item.URL == "" {
-				writeError(w, http.StatusBadRequest, "name + url required")
-				return
-			}
-			if !strings.HasPrefix(item.URL, "https://") {
-				writeError(w, http.StatusBadRequest, "url must start with https://")
-				return
-			}
-			item.NotifyOnly = true
-			cfg.Products = append(cfg.Products, item)
-			if err := saveConfig(cfgPath, cfg); err != nil {
-				writeError(w, http.StatusInternalServerError, "save: "+err.Error())
-				return
-			}
-			setUIStatus(len(cfg.Products), cfg.CheckIntervalSec, "product added — restart monitor to apply")
+			store.updateStatus("product added — restart monitor to apply")
 			w.WriteHeader(http.StatusCreated)
 			writeJSON(w, item)
 		default:
@@ -281,64 +213,32 @@ func makeProductsHandler(cfgPath string, cfg *Config) http.HandlerFunc {
 	}
 }
 
-func handleLegacyProductAction(w http.ResponseWriter, cfgPath string, cfg *Config, raw map[string]json.RawMessage) {
-	var in struct {
-		Action string  `json:"action"`
-		Index  int     `json:"index"`
-		Item   Product `json:"item"`
-	}
-	data, _ := json.Marshal(raw)
-	if err := json.Unmarshal(data, &in); err != nil {
-		writeError(w, http.StatusBadRequest, "bad json")
-		return
-	}
-	switch in.Action {
-	case "add":
-		if in.Item.URL == "" || in.Item.Name == "" {
-			writeError(w, http.StatusBadRequest, "name + url required")
-			return
-		}
-		cfg.Products = append(cfg.Products, in.Item)
-	case "remove":
-		if in.Index < 0 || in.Index >= len(cfg.Products) {
-			writeError(w, http.StatusBadRequest, "bad index")
-			return
-		}
-		cfg.Products = append(cfg.Products[:in.Index], cfg.Products[in.Index+1:]...)
-	default:
-		writeError(w, http.StatusBadRequest, "action must be add|remove")
-		return
-	}
-	if err := saveConfig(cfgPath, cfg); err != nil {
-		writeError(w, http.StatusInternalServerError, "save: "+err.Error())
-		return
-	}
-	setUIStatus(len(cfg.Products), cfg.CheckIntervalSec, "products updated — restart monitor to apply")
-	writeJSON(w, cfg.Products)
-}
-
 // makeProductByIndexHandler serves DELETE /api/products/{index}.
-func makeProductByIndexHandler(cfgPath string, cfg *Config) http.HandlerFunc {
+func makeProductByIndexHandler(store *configStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodDelete {
 			writeError(w, http.StatusMethodNotAllowed, "use DELETE")
 			return
 		}
-		idxStr := strings.TrimPrefix(r.URL.Path, "/api/products/")
-		idxStr = strings.SplitN(idxStr, "/", 2)[0]
-		idx, err := strconv.Atoi(idxStr)
-		if err != nil || idx < 0 || idx >= len(cfg.Products) {
-			writeError(w, http.StatusNotFound, "product index not found")
+		idx := pathIndex(r.URL.Path, "/api/products/")
+		if err := store.RemoveProduct(idx); err != nil {
+			writeError(w, http.StatusNotFound, err.Error())
 			return
 		}
-		cfg.Products = append(cfg.Products[:idx], cfg.Products[idx+1:]...)
-		if err := saveConfig(cfgPath, cfg); err != nil {
-			writeError(w, http.StatusInternalServerError, "save: "+err.Error())
-			return
-		}
-		setUIStatus(len(cfg.Products), cfg.CheckIntervalSec, "product removed — restart monitor to apply")
+		store.updateStatus("product removed — restart monitor to apply")
 		writeJSON(w, map[string]string{"ok": "true"})
 	}
+}
+
+// pathIndex extracts the leading integer from /prefix/{n}[/...].
+func pathIndex(path, prefix string) int {
+	rest := strings.TrimPrefix(path, prefix)
+	rest = strings.SplitN(rest, "/", 2)[0]
+	idx, err := strconv.Atoi(rest)
+	if err != nil {
+		return -1
+	}
+	return idx
 }
 
 func makeProfileHandler(profilePath string) http.HandlerFunc {
@@ -380,16 +280,15 @@ func makeProfileHandler(profilePath string) http.HandlerFunc {
 // POST /api/checkout/{index} starts an automated browser checkout run.
 // Body: {"place_order": false, "headed": true}. Defaults to dry-run:
 // the browser fills everything and stops before spending money.
-func makeCheckoutHandler(cfg *Config, profilePath string) http.HandlerFunc {
+func makeCheckoutHandler(store *configStore, profilePath string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			writeError(w, http.StatusMethodNotAllowed, "use POST")
 			return
 		}
-		idxStr := strings.TrimPrefix(r.URL.Path, "/api/checkout/")
-		idxStr = strings.SplitN(idxStr, "/", 2)[0]
-		idx, err := strconv.Atoi(idxStr)
-		if err != nil || idx < 0 || idx >= len(cfg.Products) {
+		products := store.Products()
+		idx := pathIndex(r.URL.Path, "/api/checkout/")
+		if idx < 0 || idx >= len(products) {
 			writeError(w, http.StatusNotFound, "product index not found")
 			return
 		}
@@ -400,7 +299,7 @@ func makeCheckoutHandler(cfg *Config, profilePath string) http.HandlerFunc {
 		in.Headed = true
 		_ = json.NewDecoder(http.MaxBytesReader(w, r.Body, 8<<10)).Decode(&in)
 		p, _ := loadProfile(profilePath)
-		run := startCheckoutRun(cfg.Products[idx].Name, cfg.Products[idx].URL, p, in.Headed, in.PlaceOrder)
+		run := startCheckoutRun(products[idx].Name, products[idx].URL, p, in.Headed, in.PlaceOrder)
 		w.WriteHeader(http.StatusAccepted)
 		writeJSON(w, run)
 	}

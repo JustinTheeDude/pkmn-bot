@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -59,6 +60,7 @@ type discoverState struct {
 }
 
 var discoverStatus = struct {
+	sync.RWMutex
 	state discoverState
 }{}
 
@@ -176,7 +178,29 @@ func slugToName(url string) string {
 	if len(slug) > 60 {
 		slug = slug[:60] + "…"
 	}
-	return strings.Title(slug)
+	return titleWords(slug)
+}
+
+// titleWords upper-cases the first letter of each space-separated word.
+// Replaces the deprecated strings.Title.
+func titleWords(s string) string {
+	var b strings.Builder
+	b.Grow(len(s))
+	startOfWord := true
+	for _, r := range s {
+		if r == ' ' {
+			startOfWord = true
+			b.WriteRune(r)
+			continue
+		}
+		if startOfWord {
+			b.WriteString(strings.ToUpper(string(r)))
+			startOfWord = false
+			continue
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
 }
 
 // onDiscoverFound hands an in-stock discovered URL to a browser checkout.
@@ -190,11 +214,11 @@ var onDiscoverFound = func(name, url string, p Profile, headed, placeOrder bool)
 // fills everything and stops before spending, "live" places the order).
 // OOS/blocked URLs are skipped — they stay in the watchlist for the regular
 // monitor. Returns the checkout run IDs started.
-func autoBuyMatches(matches []string, cfg *Config, profilePath string) []string {
-	if cfg.Discover.AutoBuy != "dry-run" && cfg.Discover.AutoBuy != "live" {
+func autoBuyMatches(matches []string, d DiscoverConfig, profilePath string) []string {
+	if d.AutoBuy != "dry-run" && d.AutoBuy != "live" {
 		return nil
 	}
-	live := cfg.Discover.AutoBuy == "live"
+	live := d.AutoBuy == "live"
 	p, _ := loadProfile(profilePath)
 	client := newClient(10)
 	var started []string
@@ -212,27 +236,24 @@ func autoBuyMatches(matches []string, cfg *Config, profilePath string) []string 
 	return started
 }
 
-func discoverLoop(cfg *Config, cfgPath, profilePath string) {
-	interval := cfg.Discover.IntervalMin
-	if interval <= 0 {
-		interval = 5
-	}
+func discoverLoop(store *configStore, profilePath string) {
 	known := loadKnownURLs(knownURLsFile)
-	log.Printf("discover: watching sitemap for %v every %dm (known=%d)", cfg.Discover.Keywords, interval, len(known))
-	ticker := time.NewTicker(time.Duration(interval) * time.Minute)
+	log.Printf("discover: polling sitemap (known=%d)", len(known))
+	ticker := time.NewTicker(discoverTickInterval(store))
 	defer ticker.Stop()
 	for range ticker.C {
-		if !cfg.Discover.Enabled {
+		d := store.Discover()
+		if !d.Enabled {
 			continue
 		}
-		matches, all, seeded, err := discoverOnce(newClient(30), sitemapProducts, known, cfg.Discover.Keywords)
-		discoverStatus.state.LastCheck = time.Now()
-		discoverStatus.state.KnownCount = len(known)
+		matches, all, seeded, err := discoverOnce(newClient(30), sitemapProducts, known, d.Keywords)
 		if err != nil {
+			setDiscoverState(time.Now(), len(known), 0, nil)
 			log.Printf("discover: feed fetch failed (wall?): %v", err)
 			continue
 		}
 		saveKnownURLs(knownURLsFile, all)
+		setDiscoverState(time.Now(), len(all), 0, nil)
 		if seeded {
 			log.Printf("discover: seeded %d known URLs", len(all))
 			continue
@@ -240,49 +261,74 @@ func discoverLoop(cfg *Config, cfgPath, profilePath string) {
 		if len(matches) == 0 {
 			continue
 		}
-		discoverStatus.state.LastNew = len(matches)
-		discoverStatus.state.LastMatched = matches
-		for _, m := range matches {
-			log.Printf("discover: NEW URL %s", m)
-			dup := false
-			for _, p := range cfg.Products {
-				if p.URL == m {
-					dup = true
-					break
-				}
-			}
-			if !dup {
-				cfg.Products = append(cfg.Products, Product{Name: slugToName(m) + " (discovered)", URL: m, NotifyOnly: true})
-			}
-		}
-		if err := saveConfig(cfgPath, cfg); err != nil {
+		// Only genuinely-new URLs (not already on the watchlist) are worth a
+		// notification or an auto-buy — a URL we already watch is handled by
+		// the regular monitor and must never be double-bought here.
+		addMatches, err := store.AddDiscoveredBatch(matches)
+		if err != nil {
 			log.Printf("discover: save config: %v", err)
 		}
-		runs := autoBuyMatches(matches, cfg, profilePath)
-		note := fmt.Sprintf("%d new URL(s) discovered — restart monitor to watch them", len(matches))
-		if len(runs) > 0 {
-			note = fmt.Sprintf("%d new URL(s) discovered, %d in-stock -> checkout %s", len(matches), len(runs), strings.Join(runs, ","))
+		if len(addMatches) == 0 {
+			continue
 		}
-		setUIStatus(len(cfg.Products), cfg.CheckIntervalSec, note)
+		for _, m := range addMatches {
+			log.Printf("discover: NEW URL %s", m)
+		}
+		runs := autoBuyMatches(addMatches, d, profilePath)
+		setDiscoverState(time.Now(), len(all), len(addMatches), addMatches)
+		note := fmt.Sprintf("%d new URL(s) discovered — restart monitor to watch them", len(addMatches))
+		if len(runs) > 0 {
+			note = fmt.Sprintf("%d new URL(s) discovered, %d in-stock -> checkout %s", len(addMatches), len(runs), strings.Join(runs, ","))
+		}
+		store.updateStatus(note)
 		discordMsg := fmt.Sprintf("🆕 NEW PRODUCT URLS (%d):\n%s\nRestart monitor to watch them.",
-			len(matches), strings.Join(matches, "\n"))
+			len(addMatches), strings.Join(addMatches, "\n"))
 		if len(runs) > 0 {
 			discordMsg = fmt.Sprintf("🆕 NEW PRODUCT URLS (%d), %d IN-STOCK:\n%s\nAuto-buy checkout(s): %s",
-				len(matches), len(runs), strings.Join(matches, "\n"), strings.Join(runs, ", "))
+				len(addMatches), len(runs), strings.Join(addMatches, "\n"), strings.Join(runs, ", "))
 		}
-		_ = sendDiscord(cfg.DiscordWebhook, discordMsg)
+		_ = sendDiscord(store.Webhook(), discordMsg)
 	}
 }
 
-func handleDiscover(cfg *Config, cfgPath string) http.HandlerFunc {
+func discoverTickInterval(store *configStore) time.Duration {
+	mins := store.Discover().IntervalMin
+	if mins <= 0 {
+		mins = 5
+	}
+	return time.Duration(mins) * time.Minute
+}
+
+// setDiscoverState publishes discovery progress for the dashboard.
+func setDiscoverState(lastCheck time.Time, knownCount, lastNew int, matched []string) {
+	discoverStatus.Lock()
+	discoverStatus.state.LastCheck = lastCheck
+	discoverStatus.state.KnownCount = knownCount
+	if lastNew > 0 {
+		discoverStatus.state.LastNew = lastNew
+		discoverStatus.state.LastMatched = matched
+	}
+	discoverStatus.Unlock()
+}
+
+func discoverSnapshot() discoverState {
+	discoverStatus.RLock()
+	defer discoverStatus.RUnlock()
+	s := discoverStatus.state
+	s.LastMatched = append([]string(nil), discoverStatus.state.LastMatched...)
+	return s
+}
+
+func makeDiscoverHandler(store *configStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
+			snap := discoverSnapshot()
 			writeJSON(w, map[string]any{
-				"config":      cfg.Discover,
-				"last_check":  discoverStatus.state.LastCheck,
-				"known_count": discoverStatus.state.KnownCount,
-				"last_new":    discoverStatus.state.LastNew,
+				"config":      store.Discover(),
+				"last_check":  snap.LastCheck,
+				"known_count": snap.KnownCount,
+				"last_new":    snap.LastNew,
 			})
 		case http.MethodPut:
 			var in DiscoverConfig
@@ -290,16 +336,12 @@ func handleDiscover(cfg *Config, cfgPath string) http.HandlerFunc {
 				writeError(w, http.StatusBadRequest, "bad json")
 				return
 			}
-			if in.IntervalMin <= 0 {
-				in.IntervalMin = 5
-			}
-			normalizeDiscover(&in)
-			cfg.Discover = in
-			if err := saveConfig(cfgPath, cfg); err != nil {
+			saved, err := store.UpdateDiscover(in)
+			if err != nil {
 				writeError(w, http.StatusInternalServerError, "save: "+err.Error())
 				return
 			}
-			writeJSON(w, cfg.Discover)
+			writeJSON(w, saved)
 		default:
 			writeError(w, http.StatusMethodNotAllowed, "use GET or PUT")
 		}
@@ -311,7 +353,7 @@ func handleDiscovered(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusMethodNotAllowed, "use GET")
 		return
 	}
-	matched := discoverStatus.state.LastMatched
+	matched := discoverSnapshot().LastMatched
 	if matched == nil {
 		matched = []string{}
 	}
