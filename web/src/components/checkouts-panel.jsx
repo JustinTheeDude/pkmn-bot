@@ -56,8 +56,8 @@ export function CheckoutsPanel() {
             ))}
             {runs.length === 0 && (
               <TableRow>
-                <TableCell colSpan={3} className="text-center text-muted-foreground">
-                  No runs yet — hit Dry-run on a product.
+                <TableCell colSpan={3} className="hand text-center text-lg text-muted-foreground">
+                  no runs yet — hit Dry-run on a product
                 </TableCell>
               </TableRow>
             )}

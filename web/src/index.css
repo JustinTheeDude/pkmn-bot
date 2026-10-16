@@ -4,48 +4,50 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
-    --radius: 0.625rem;
+    /* warm paper + crayon ink */
+    --background: 40 50% 96%;
+    --foreground: 25 25% 16%;
+    --card: 42 62% 99%;
+    --card-foreground: 25 25% 16%;
+    --popover: 42 62% 99%;
+    --popover-foreground: 25 25% 16%;
+    --primary: 352 78% 56%; /* pokeball red */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 152 34% 88%; /* soft mint */
+    --secondary-foreground: 165 32% 20%;
+    --muted: 40 30% 91%;
+    --muted-foreground: 28 12% 40%;
+    --accent: 45 96% 70%; /* sunny yellow */
+    --accent-foreground: 30 45% 16%;
+    --destructive: 0 72% 52%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 30 22% 76%;
+    --input: 30 22% 76%;
+    --ring: 352 78% 56%;
+    --radius: 1rem;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
+    /* chalkboard */
+    --background: 232 22% 14%;
+    --foreground: 42 38% 92%;
+    --card: 232 22% 17%;
+    --card-foreground: 42 38% 92%;
+    --popover: 232 22% 17%;
+    --popover-foreground: 42 38% 92%;
+    --primary: 352 82% 66%;
+    --primary-foreground: 232 30% 12%;
+    --secondary: 232 18% 25%;
+    --secondary-foreground: 42 30% 92%;
+    --muted: 232 18% 22%;
+    --muted-foreground: 40 16% 70%;
+    --accent: 45 82% 62%;
+    --accent-foreground: 232 30% 12%;
+    --destructive: 0 66% 56%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 232 16% 32%;
+    --input: 232 16% 32%;
+    --ring: 352 82% 66%;
   }
 }
 
@@ -55,13 +57,71 @@
   }
   body {
     @apply bg-background text-foreground antialiased;
+    font-family: theme('fontFamily.sans');
     font-feature-settings: 'rlig' 1, 'calt' 1;
+    /* dotted notebook paper */
+    background-image: radial-gradient(hsl(var(--foreground) / 0.06) 1px, transparent 1.4px);
+    background-size: 22px 22px;
+    background-attachment: fixed;
+  }
+  h1,
+  h2,
+  h3,
+  h4,
+  h5 {
+    font-family: theme('fontFamily.display');
+    letter-spacing: 0.01em;
+  }
+  ::selection {
+    background: hsl(var(--accent));
+    color: hsl(var(--accent-foreground));
   }
   ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+    width: 11px;
+    height: 11px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    @apply rounded-full bg-border;
+    border-radius: 9999px;
+    border: 3px solid transparent;
+    background-clip: content-box;
+    background-color: hsl(var(--foreground) / 0.22);
   }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: hsl(var(--foreground) / 0.35);
+  }
+}
+
+/* ---- hand-drawn kit (plain CSS, beats layered utilities) ---- */
+
+/* wobbly, "drawn by hand" corner radii */
+.wobble {
+  border-radius: 14px 18px 15px 20px / 18px 14px 20px 15px;
+}
+.wobble-sm {
+  border-radius: 9px 12px 10px 13px / 12px 9px 13px 10px;
+}
+.wobble-lg {
+  border-radius: 24px 30px 26px 32px / 30px 24px 32px 26px;
+}
+
+/* offset marker shadow, like a doodle lifted off the page */
+.doodle-shadow {
+  box-shadow: 3px 3px 0 0 hsl(var(--foreground) / 0.1);
+}
+
+/* squiggly underline for headings / emphasis */
+.squiggle {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='64' height='8' viewBox='0 0 64 8'><path d='M0 5 Q8 1 16 5 T32 5 T48 5 T64 5' fill='none' stroke='%23e8455f' stroke-width='2.6' stroke-linecap='round'/></svg>");
+  background-repeat: repeat-x;
+  background-position: 0 100%;
+  background-size: 64px 8px;
+  padding-bottom: 7px;
+}
+
+/* handwritten accent text */
+.hand {
+  font-family: theme('fontFamily.hand');
 }

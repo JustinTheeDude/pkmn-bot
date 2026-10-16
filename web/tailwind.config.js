@@ -9,6 +9,12 @@ export default {
       screens: { '2xl': '1400px' },
     },
     extend: {
+      fontFamily: {
+        sans: ['Nunito', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        display: ['Grandstander', 'ui-rounded', 'system-ui', 'sans-serif'],
+        hand: ['Caveat', 'ui-rounded', 'cursive'],
+        mono: ['"Ubuntu Mono"', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
+      },
       colors: {
         border: 'hsl(var(--border))',
         input: 'hsl(var(--input))',
@@ -52,10 +58,26 @@ export default {
       keyframes: {
         'accordion-down': { from: { height: '0' }, to: { height: 'var(--radix-accordion-content-height)' } },
         'accordion-up': { from: { height: 'var(--radix-accordion-content-height)' }, to: { height: '0' } },
+        wiggle: {
+          '0%, 100%': { transform: 'rotate(-2deg)' },
+          '50%': { transform: 'rotate(2deg)' },
+        },
+        pop: {
+          '0%': { transform: 'scale(.94)' },
+          '60%': { transform: 'scale(1.04)' },
+          '100%': { transform: 'scale(1)' },
+        },
+        'doodle-in': {
+          from: { opacity: '0', transform: 'translateY(6px) rotate(-.5deg)' },
+          to: { opacity: '1', transform: 'translateY(0) rotate(0)' },
+        },
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
         'accordion-up': 'accordion-up 0.2s ease-out',
+        wiggle: 'wiggle .7s ease-in-out infinite',
+        pop: 'pop .22s ease-out',
+        'doodle-in': 'doodle-in .3s ease-out both',
       },
     },
   },

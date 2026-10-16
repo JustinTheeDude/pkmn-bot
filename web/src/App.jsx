@@ -35,15 +35,15 @@ function Overview({ status, products, drops, discovered, runs, onNavigate }) {
           </CardHeader>
           <CardContent className="space-y-2">
             {drops.slice(0, 4).map((d) => (
-              <button key={d.id} onClick={() => onNavigate('drops')} className="flex w-full items-center justify-between rounded-md border p-3 text-left hover:bg-accent">
+              <button key={d.id} onClick={() => onNavigate('drops')} className="wobble-sm flex w-full items-center justify-between border-2 border-border p-3 text-left transition-colors hover:bg-accent/40">
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">{d.name}</p>
-                  <p className="text-xs text-muted-foreground">{new Date(d.fire_at).toLocaleString()}</p>
+                  <p className="truncate text-sm font-bold">{d.name}</p>
+                  <p className="font-mono text-xs text-muted-foreground">{new Date(d.fire_at).toLocaleString()}</p>
                 </div>
                 <Badge variant={d.state === 'scheduled' ? 'secondary' : 'default'}>{d.state}</Badge>
               </button>
             ))}
-            {drops.length === 0 && <p className="text-sm text-muted-foreground">No drops scheduled. Plan the next hype drop.</p>}
+            {drops.length === 0 && <p className="hand text-lg text-muted-foreground">no drops scheduled — plan the next hype drop!</p>}
           </CardContent>
         </Card>
         <Card>
@@ -53,12 +53,12 @@ function Overview({ status, products, drops, discovered, runs, onNavigate }) {
           </CardHeader>
           <CardContent className="space-y-2">
             {products.slice(0, 4).map((p, i) => (
-              <button key={i} onClick={() => onNavigate('products')} className="flex w-full items-center justify-between rounded-md border p-3 text-left hover:bg-accent">
-                <p className="truncate text-sm font-medium">{p.name}</p>
+              <button key={i} onClick={() => onNavigate('products')} className="wobble-sm flex w-full items-center justify-between border-2 border-border p-3 text-left transition-colors hover:bg-accent/40">
+                <p className="truncate text-sm font-bold">{p.name}</p>
                 <Badge variant="secondary">watching</Badge>
               </button>
             ))}
-            {products.length === 0 && <p className="text-sm text-muted-foreground">Watchlist empty.</p>}
+            {products.length === 0 && <p className="hand text-lg text-muted-foreground">watchlist is empty…</p>}
           </CardContent>
         </Card>
       </div>
@@ -133,7 +133,7 @@ export default function App() {
   const activeLabel = NAV.find((n) => n.id === tab)?.label ?? 'Overview'
 
   return (
-    <div className="flex min-h-screen bg-background">
+    <div className="flex min-h-screen">
       <Sidebar active={tab} onNavigate={setTab} counts={counts} />
       <div className="flex min-w-0 flex-1 flex-col">
         <div className="mx-auto w-full max-w-6xl flex-1 space-y-4 p-4 sm:p-6">
@@ -154,7 +154,7 @@ export default function App() {
             </div>
           ) : (
             <>
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{activeLabel}</p>
+              <p className="font-display text-xs font-bold uppercase tracking-wide text-muted-foreground">{activeLabel}</p>
               {tab === 'overview' && (
                 <Overview status={status} products={products} drops={drops} discovered={discovered} runs={runs} onNavigate={setTab} />
               )}
@@ -169,7 +169,7 @@ export default function App() {
             </>
           )}
 
-          <p className="pt-2 text-center text-xs text-muted-foreground">
+          <p className="hand pt-2 text-center text-lg text-muted-foreground">
             {status ? `watching ${status.watching} · every ${status.interval_sec}s · ${status.note || 'live'}` : 'connecting…'} · localhost only
           </p>
         </div>

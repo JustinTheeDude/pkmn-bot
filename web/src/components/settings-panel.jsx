@@ -68,14 +68,14 @@ export function SettingsPanel({ initial, onSaved }) {
             <Label>Discord webhook</Label>
             <Input placeholder="https://discord.com/api/webhooks/…" value={form.discord_webhook} onChange={(e) => set('discord_webhook', e.target.value)} />
           </div>
-          <div className="flex items-center justify-between rounded-md border p-3">
+          <div className="wobble-sm flex items-center justify-between border-2 border-border p-3">
             <div>
               <Label>Auto-open browser on hit</Label>
               <p className="text-xs text-muted-foreground">Opens product tab the second it flips</p>
             </div>
             <Switch checked={!!form.auto_open_browser} onCheckedChange={(v) => set('auto_open_browser', v)} />
           </div>
-          <div className="flex items-center justify-between rounded-md border p-3">
+          <div className="wobble-sm flex items-center justify-between border-2 border-border p-3">
             <div>
               <Label>Beep on hit</Label>
               <p className="text-xs text-muted-foreground">Terminal bell + macOS Glass sound</p>
@@ -93,13 +93,13 @@ export function SettingsPanel({ initial, onSaved }) {
           <CardDescription>Why these floors exist.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3 text-sm text-muted-foreground">
-          <div className="flex items-start justify-between rounded-md border p-3">
+          <div className="wobble-sm flex items-start justify-between border-2 border-border p-3">
             <span>Poll interval floor</span><Badge>≥ 10s</Badge>
           </div>
-          <div className="flex items-start justify-between rounded-md border p-3">
+          <div className="wobble-sm flex items-start justify-between border-2 border-border p-3">
             <span>HTTP timeout floor</span><Badge>≥ 5s</Badge>
           </div>
-          <div className="flex items-start justify-between rounded-md border p-3">
+          <div className="wobble-sm flex items-start justify-between border-2 border-border p-3">
             <span>Drop retry gap floor</span><Badge>≥ 500ms</Badge>
           </div>
           <p className="leading-relaxed">

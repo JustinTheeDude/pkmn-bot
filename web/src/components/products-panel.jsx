@@ -99,8 +99,8 @@ export function ProductsPanel({ items, onChange }) {
               ))}
               {items.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={3} className="text-center text-muted-foreground">
-                    No products yet — add your first URL.
+                  <TableCell colSpan={3} className="hand text-center text-lg text-muted-foreground">
+                    no products yet — add your first URL!
                   </TableCell>
                 </TableRow>
               )}

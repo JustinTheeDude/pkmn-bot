@@ -10,7 +10,7 @@ function Table({ className, ...props }) {
 }
 
 function TableHeader({ className, ...props }) {
-  return <thead className={cn('[&_tr]:border-b', className)} {...props} />
+  return <thead className={cn('[&_tr]:border-b-2 [&_tr]:border-border', className)} {...props} />
 }
 
 function TableBody({ className, ...props }) {
@@ -20,7 +20,10 @@ function TableBody({ className, ...props }) {
 function TableRow({ className, ...props }) {
   return (
     <tr
-      className={cn('border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted', className)}
+      className={cn(
+        'border-b-2 border-border/50 transition-colors hover:bg-accent/25 data-[state=selected]:bg-muted',
+        className,
+      )}
       {...props}
     />
   )
@@ -30,7 +33,7 @@ function TableHead({ className, ...props }) {
   return (
     <th
       className={cn(
-        'h-12 px-4 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0',
+        'h-11 px-4 text-left align-middle font-display text-xs font-bold uppercase tracking-wide text-muted-foreground [&:has([role=checkbox])]:pr-0',
         className,
       )}
       {...props}

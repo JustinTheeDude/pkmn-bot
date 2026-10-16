@@ -57,7 +57,7 @@ export function DiscoveryPanel() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center justify-between rounded-md border p-3">
+          <div className="wobble-sm flex items-center justify-between border-2 border-border p-3">
             <div>
               <Label htmlFor="disc-enabled">Poll sitemap</Label>
               <p className="text-xs text-muted-foreground">Every few minutes · first run seeds catalog</p>
@@ -84,7 +84,7 @@ export function DiscoveryPanel() {
           </div>
           <div className="space-y-1.5">
             <Label>Auto-buy discovered URLs</Label>
-            <div className="grid grid-cols-3 gap-1 rounded-md bg-muted p-1">
+            <div className="wobble-sm grid grid-cols-3 gap-1 border-2 border-border bg-muted p-1">
               {[
                 { id: 'off', label: 'Off' },
                 { id: 'dry-run', label: 'Dry-run' },
@@ -93,10 +93,10 @@ export function DiscoveryPanel() {
                 <button
                   key={o.id}
                   onClick={() => set('auto_buy', o.id)}
-                  className={`rounded-sm px-3 py-1.5 text-sm font-medium transition-all ${
+                  className={`wobble-sm border-2 px-3 py-1.5 font-display text-sm font-semibold transition-all ${
                     (cfg.auto_buy || 'off') === o.id
-                      ? 'bg-background text-foreground shadow-sm'
-                      : 'text-muted-foreground hover:text-foreground'
+                      ? 'border-foreground/15 bg-card text-foreground doodle-shadow'
+                      : 'border-transparent text-muted-foreground hover:text-foreground'
                   }`}
                 >
                   {o.label}
@@ -126,11 +126,11 @@ export function DiscoveryPanel() {
         </CardHeader>
         <CardContent>
           {found.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nothing new — catalog is quiet.</p>
+            <p className="hand text-lg text-muted-foreground">nothing new — the catalog is quiet.</p>
           ) : (
             <ul className="space-y-2">
               {found.map((u) => (
-                <li key={u} className="break-all rounded-md bg-muted p-2 font-mono text-xs">{u}</li>
+                <li key={u} className="wobble-sm break-all border-2 border-border bg-muted p-2 font-mono text-xs">{u}</li>
               ))}
             </ul>
           )}

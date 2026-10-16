@@ -109,7 +109,7 @@ export function DropsPanel() {
               ))}
               {jobs.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center text-muted-foreground">No scheduled drops</TableCell>
+                  <TableCell colSpan={4} className="hand text-center text-lg text-muted-foreground">no drops scheduled</TableCell>
                 </TableRow>
               )}
             </TableBody>
@@ -145,7 +145,7 @@ export function DropsPanel() {
               <Input type="number" min="500" step="500" value={form.interval_ms} onChange={(e) => set('interval_ms', e.target.value)} />
             </div>
           </div>
-          <div className="flex items-center justify-between rounded-md border p-3">
+          <div className="wobble-sm flex items-center justify-between border-2 border-border p-3">
             <Label htmlFor="place-order">Actually place order</Label>
             <Switch id="place-order" checked={form.place_order} onCheckedChange={(v) => set('place_order', v)} />
           </div>
