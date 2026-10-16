@@ -58,7 +58,7 @@ export function Sidebar({ active, onNavigate, counts }) {
             key={n.id}
             onClick={() => onNavigate(n.id)}
             className={cn(
-              'wobble-sm flex items-center gap-3 border-2 px-3 py-2 font-display text-sm font-semibold transition-all',
+              'wobble-sm flex items-center gap-3 border-2 px-3 py-2 font-display text-sm font-semibold transition-[transform,background-color,color,border-color] duration-150 ease-out',
               isActive
                 ? 'doodle-shadow border-foreground/20 bg-primary text-primary-foreground'
                 : 'border-transparent text-muted-foreground hover:border-foreground/10 hover:bg-accent/50 hover:text-accent-foreground',
@@ -127,7 +127,7 @@ export function TopHeader({ status, connected }) {
       </div>
       <div className="flex items-center gap-2">
         <Badge variant={connected ? 'success' : 'destructive'} className="gap-1.5">
-          <span className={cn('h-1.5 w-1.5 rounded-full', connected ? 'bg-emerald-500 animate-pulse' : 'bg-red-500')} />
+          <span className={cn('pulse-dot h-1.5 w-1.5 rounded-full', connected ? 'bg-emerald-500 animate-pulse' : 'bg-red-500')} />
           {connected ? 'live' : 'offline'}
         </Badge>
         {status && (

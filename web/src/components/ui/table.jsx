@@ -21,7 +21,7 @@ function TableRow({ className, ...props }) {
   return (
     <tr
       className={cn(
-        'border-b-2 border-border/50 transition-colors hover:bg-accent/25 data-[state=selected]:bg-muted',
+        'border-b-2 border-border/50 transition-[background-color] duration-150 hover:bg-accent/25 data-[state=selected]:bg-muted',
         className,
       )}
       {...props}

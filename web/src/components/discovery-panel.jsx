@@ -93,7 +93,7 @@ export function DiscoveryPanel() {
                 <button
                   key={o.id}
                   onClick={() => set('auto_buy', o.id)}
-                  className={`wobble-sm border-2 px-3 py-1.5 font-display text-sm font-semibold transition-all ${
+                  className={`wobble-sm border-2 px-3 py-1.5 font-display text-sm font-semibold transition-[background-color,color] duration-150 ease-out ${
                     (cfg.auto_buy || 'off') === o.id
                       ? 'border-foreground/15 bg-card text-foreground doodle-shadow'
                       : 'border-transparent text-muted-foreground hover:text-foreground'

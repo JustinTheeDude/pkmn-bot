@@ -15,6 +15,14 @@ export default {
         hand: ['Caveat', 'ui-rounded', 'cursive'],
         mono: ['"Ubuntu Mono"', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
       },
+      // Smooth, UI-appropriate motion timing (durations 150-300ms per guidance).
+      transitionTimingFunction: {
+        DEFAULT: 'cubic-bezier(0.22, 1, 0.36, 1)',
+        doodle: 'cubic-bezier(0.34, 1.4, 0.5, 1)',
+      },
+      transitionDuration: {
+        DEFAULT: '180ms',
+      },
       colors: {
         border: 'hsl(var(--border))',
         input: 'hsl(var(--input))',
@@ -68,8 +76,8 @@ export default {
           '100%': { transform: 'scale(1)' },
         },
         'doodle-in': {
-          from: { opacity: '0', transform: 'translateY(6px) rotate(-.5deg)' },
-          to: { opacity: '1', transform: 'translateY(0) rotate(0)' },
+          from: { opacity: '0', transform: 'translate3d(0, 7px, 0) rotate(-.5deg)' },
+          to: { opacity: '1', transform: 'none' },
         },
       },
       animation: {
@@ -77,7 +85,7 @@ export default {
         'accordion-up': 'accordion-up 0.2s ease-out',
         wiggle: 'wiggle .7s ease-in-out infinite',
         pop: 'pop .22s ease-out',
-        'doodle-in': 'doodle-in .3s ease-out both',
+        'doodle-in': 'doodle-in .3s cubic-bezier(0.22, 1, 0.36, 1) both',
       },
     },
   },

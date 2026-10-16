@@ -4,14 +4,16 @@ import { cva } from 'class-variance-authority'
 import { cn } from '../../lib/utils.js'
 
 const buttonVariants = cva(
-  'wobble-sm inline-flex items-center justify-center gap-2 whitespace-nowrap font-display text-sm font-bold tracking-wide ring-offset-background transition-[transform,filter,background-color] duration-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 active:translate-y-[1px] disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0',
+  // Compositor-friendly: hover/press are pure `transform` (no layout/paint).
+  // Only background-color is transitioned for the (small) ghost/outline surfaces.
+  'wobble-sm inline-flex items-center justify-center gap-2 whitespace-nowrap font-display text-sm font-bold tracking-wide ring-offset-background transition-[transform,background-color,color,border-color] duration-150 ease-out hover:-translate-y-px active:translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0',
   {
     variants: {
       variant: {
-        default: 'doodle-shadow bg-primary text-primary-foreground hover:brightness-105',
-        destructive: 'doodle-shadow bg-destructive text-destructive-foreground hover:brightness-105',
+        default: 'doodle-shadow bg-primary text-primary-foreground',
+        destructive: 'doodle-shadow bg-destructive text-destructive-foreground',
         outline: 'border-2 border-foreground/25 bg-card hover:bg-accent hover:text-accent-foreground',
-        secondary: 'border-2 border-foreground/10 bg-secondary text-secondary-foreground hover:brightness-105',
+        secondary: 'border-2 border-foreground/10 bg-secondary text-secondary-foreground',
         ghost: 'hover:bg-accent/60 hover:text-accent-foreground',
         link: 'text-primary underline-offset-4 hover:underline',
       },

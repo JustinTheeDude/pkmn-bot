@@ -55,14 +55,33 @@
   * {
     @apply border-border;
   }
+  html {
+    background-color: hsl(var(--background));
+    color-scheme: light;
+  }
+  html.dark {
+    color-scheme: dark;
+  }
   body {
-    @apply bg-background text-foreground antialiased;
+    @apply text-foreground antialiased;
     font-family: theme('fontFamily.sans');
     font-feature-settings: 'rlig' 1, 'calt' 1;
-    /* dotted notebook paper */
-    background-image: radial-gradient(hsl(var(--foreground) / 0.06) 1px, transparent 1.4px);
+    background: transparent;
+  }
+  /*
+   * Dotted notebook paper as a FIXED overlay instead of
+   * `background-attachment: fixed` — the latter repaints the whole viewport on
+   * every scroll frame. A fixed pseudo-element lives on its own compositor
+   * layer, so scrolling never repaints it.
+   */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background-image: radial-gradient(hsl(var(--foreground) / 0.06) 1.4px, transparent 1.4px);
     background-size: 22px 22px;
-    background-attachment: fixed;
   }
   h1,
   h2,
@@ -124,4 +143,41 @@
 /* handwritten accent text */
 .hand {
   font-family: theme('fontFamily.hand');
+}
+
+/*
+ * Compositor-only entrance the grid can stagger. Animates transform + opacity
+ * only, so it never touches layout or paint (60fps even on weak GPUs).
+ * Caps at 8 children so the last item never lags.
+ */
+.stagger > * {
+  animation: doodle-in 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.stagger > *:nth-child(2) { animation-delay: 45ms; }
+.stagger > *:nth-child(3) { animation-delay: 90ms; }
+.stagger > *:nth-child(4) { animation-delay: 135ms; }
+.stagger > *:nth-child(5) { animation-delay: 180ms; }
+.stagger > *:nth-child(6) { animation-delay: 225ms; }
+.stagger > *:nth-child(7) { animation-delay: 270ms; }
+.stagger > *:nth-child(8) { animation-delay: 315ms; }
+
+/* keep the pulsing "live" dot on its own layer (opacity-only animation) */
+.pulse-dot {
+  will-change: opacity;
+}
+
+/*
+ * Respect the OS "reduce motion" setting: collapse every animation/transition
+ * to effectively instant rather than removing states (so nothing breaks).
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
 }

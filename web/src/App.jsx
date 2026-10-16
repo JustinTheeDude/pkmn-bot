@@ -24,10 +24,10 @@ function Overview({ status, products, drops, discovered, runs, onNavigate }) {
   ]
   return (
     <div className="space-y-4">
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="stagger grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {stats.map((s) => <StatCard key={s.title} {...s} />)}
       </div>
-      <div className="grid gap-4 xl:grid-cols-2">
+      <div className="stagger grid gap-4 xl:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle>Next drops</CardTitle>
@@ -35,7 +35,7 @@ function Overview({ status, products, drops, discovered, runs, onNavigate }) {
           </CardHeader>
           <CardContent className="space-y-2">
             {drops.slice(0, 4).map((d) => (
-              <button key={d.id} onClick={() => onNavigate('drops')} className="wobble-sm flex w-full items-center justify-between border-2 border-border p-3 text-left transition-colors hover:bg-accent/40">
+              <button key={d.id} onClick={() => onNavigate('drops')} className="wobble-sm flex w-full items-center justify-between border-2 border-border p-3 text-left transition-[background-color] duration-150 hover:bg-accent/40">
                 <div className="min-w-0">
                   <p className="truncate text-sm font-bold">{d.name}</p>
                   <p className="font-mono text-xs text-muted-foreground">{new Date(d.fire_at).toLocaleString()}</p>
@@ -53,7 +53,7 @@ function Overview({ status, products, drops, discovered, runs, onNavigate }) {
           </CardHeader>
           <CardContent className="space-y-2">
             {products.slice(0, 4).map((p, i) => (
-              <button key={i} onClick={() => onNavigate('products')} className="wobble-sm flex w-full items-center justify-between border-2 border-border p-3 text-left transition-colors hover:bg-accent/40">
+              <button key={i} onClick={() => onNavigate('products')} className="wobble-sm flex w-full items-center justify-between border-2 border-border p-3 text-left transition-[background-color] duration-150 hover:bg-accent/40">
                 <p className="truncate text-sm font-bold">{p.name}</p>
                 <Badge variant="secondary">watching</Badge>
               </button>
